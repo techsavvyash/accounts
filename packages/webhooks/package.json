@@ -1,0 +1,39 @@
+{
+  "name": "@accounts/webhooks",
+  "version": "1.0.0",
+  "description": "Webhook and event-driven architecture for the accounts management platform",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir=dist --target=node --format=esm --splitting --minify",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "webhooks",
+    "events",
+    "microservices",
+    "notifications",
+    "integrations",
+    "accounting"
+  ],
+  "author": "Business Accounts Management",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "zod": "^3.22.4",
+    "crypto": "^1.0.1"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  }
+}

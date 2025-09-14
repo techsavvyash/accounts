@@ -1,0 +1,620 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum EntryType {
+  DEBIT
+  CREDIT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  VOID
+}
+
+enum CreditNoteStatus {
+  DRAFT
+  APPLIED
+  VOID
+}
+
+enum StockMovementReason {
+  SALE
+  PURCHASE_RECEIPT
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  TRANSFER
+}
+
+enum ReturnType {
+  GSTR1
+  GSTR3B
+}
+
+enum ReturnStatus {
+  DRAFT
+  FILED
+  PROCESSED
+}
+
+// Multi-Tenant Core
+model Tenant {
+  id                   String    @id @default(uuid())
+  name                 String
+  gstin                String?   @unique
+  pan                  String?
+  address              Json?
+  phone                String?
+  email                String?
+  subscriptionPlanId   String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  users                TenantUser[]
+  accounts             Account[]
+  journalEntries       JournalEntry[]
+  customers            Customer[]
+  suppliers            Supplier[]
+  inventoryItems       InventoryItem[]
+  warehouses           Warehouse[]
+  stockMovements       StockMovement[]
+  invoices             Invoice[]
+  creditNotes          CreditNote[]
+  gstReturns           GstReturn[]
+  webhooks             Webhook[]
+  roles                Role[]
+  taxRates             TaxRate[]
+  analyticsSnapshots   AnalyticsSnapshot[]
+  purchaseOrders       PurchaseOrder[]
+
+  @@map("tenants")
+}
+
+// Global Users (can belong to multiple tenants)
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  fullName     String?  @map("full_name")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenantUsers        TenantUser[]
+  journalEntries     JournalEntry[]
+  stockMovements     StockMovement[]
+  refreshTokens      RefreshToken[]
+
+  @@map("users")
+}
+
+// User Refresh Tokens
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// Role-Based Access Control
+model Role {
+  id          String  @id @default(uuid())
+  tenantId    String? @map("tenant_id") // NULL for system roles
+  name        String
+  description String?
+
+  // Relations
+  tenant          Tenant?           @relation(fields: [tenantId], references: [id])
+  tenantUsers     TenantUser[]
+  rolePermissions RolePermission[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id       String @id @default(uuid())
+  action   String // 'create', 'read', 'update', 'delete'
+  resource String // 'invoice', 'customer', 'report'
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@unique([action, resource])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// User-Tenant-Role Mapping
+model TenantUser {
+  userId   String   @map("user_id")
+  tenantId String   @map("tenant_id")
+  roleId   String   @map("role_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@id([userId, tenantId])
+  @@map("tenant_users")
+}
+
+// Double-Entry Accounting Core
+
+// Chart of Accounts
+model Account {
+  id              String       @id @default(uuid())
+  tenantId        String       @map("tenant_id")
+  name            String
+  accountType     AccountType  @map("account_type")
+  normalBalance   NormalBalance @map("normal_balance")
+  parentAccountId String?      @map("parent_account_id")
+  isSystemAccount Boolean      @default(false) @map("is_system_account")
+  isActive        Boolean      @default(true) @map("is_active")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  tenant        Tenant @relation(fields: [tenantId], references: [id])
+  parentAccount Account? @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts Account[] @relation("AccountHierarchy")
+  journalEntryLines JournalEntryLine[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, accountType])
+  @@map("accounts")
+}
+
+// Journal Entries (Transactions)
+model JournalEntry {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  entryDate     DateTime @map("entry_date")
+  description   String?
+  referenceType String?  @map("reference_type") // 'invoice', 'payment', 'adjustment'
+  referenceId   String?  @map("reference_id")
+  createdBy     String   @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [createdBy], references: [id])
+  lines  JournalEntryLine[]
+
+  @@index([tenantId, entryDate])
+  @@index([referenceType, referenceId])
+  @@map("journal_entries")
+}
+
+// Journal Entry Lines (Debits and Credits)
+model JournalEntryLine {
+  id              String    @id @default(uuid())
+  journalEntryId  String    @map("journal_entry_id")
+  accountId       String    @map("account_id")
+  type            EntryType
+  amount          Decimal   @db.Decimal(15, 2)
+  description     String?
+
+  // Relations
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id])
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("journal_entry_lines")
+}
+
+// Customers
+model Customer {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  gstin       String?
+  pan         String?
+  address     Json?
+  phone       String?
+  email       String?
+  creditLimit Decimal? @db.Decimal(15, 2) @map("credit_limit")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  invoices    Invoice[]
+  creditNotes CreditNote[]
+
+  @@index([tenantId])
+  @@map("customers")
+}
+
+// Suppliers
+model Supplier {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  gstin       String?
+  pan         String?
+  address     Json?
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  purchaseOrders PurchaseOrder[]
+
+  @@index([tenantId])
+  @@map("suppliers")
+}
+
+// Inventory Management
+
+// Inventory Items
+model InventoryItem {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  sku           String
+  name          String
+  description   String?
+  hsnCode       String?  @map("hsn_code") // For GST
+  purchasePrice Decimal? @db.Decimal(15, 2) @map("purchase_price")
+  salePrice     Decimal? @db.Decimal(15, 2) @map("sale_price")
+  reorderPoint  Int?     @map("reorder_point")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  stockLevels           StockLevel[]
+  stockMovements        StockMovement[]
+  invoiceItems          InvoiceLineItem[]
+  taxRates              TaxRate[]
+  purchaseOrderItems    PurchaseOrderLineItem[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+  @@index([hsnCode])
+  @@map("inventory_items")
+}
+
+// Warehouses
+model Warehouse {
+  id        String  @id @default(uuid())
+  tenantId  String  @map("tenant_id")
+  name      String
+  location  String?
+  isDefault Boolean @default(false) @map("is_default")
+
+  // Relations
+  tenant            Tenant          @relation(fields: [tenantId], references: [id])
+  stockLevels       StockLevel[]
+  stockMovementsFrom StockMovement[] @relation("FromWarehouse")
+  stockMovementsTo   StockMovement[] @relation("ToWarehouse")
+
+  @@index([tenantId])
+  @@map("warehouses")
+}
+
+// Current Stock Levels
+model StockLevel {
+  inventoryItemId String @map("inventory_item_id")
+  warehouseId     String @map("warehouse_id")
+  quantityOnHand  Int    @default(0) @map("quantity_on_hand")
+  lastUpdated     DateTime @default(now()) @map("last_updated")
+
+  // Relations
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  warehouse     Warehouse     @relation(fields: [warehouseId], references: [id])
+
+  @@id([inventoryItemId, warehouseId])
+  @@map("stock_levels")
+}
+
+// Stock Movement Audit Trail
+model StockMovement {
+  id                String               @id @default(uuid())
+  tenantId          String               @map("tenant_id")
+  inventoryItemId   String               @map("inventory_item_id")
+  fromWarehouseId   String?              @map("from_warehouse_id")
+  toWarehouseId     String?              @map("to_warehouse_id")
+  quantity          Int
+  reason            StockMovementReason
+  referenceId       String?              @map("reference_id") // Links to invoice_id, purchase_order_id, etc.
+  movementDate      DateTime             @default(now()) @map("movement_date")
+  createdBy         String               @map("created_by")
+
+  // Relations
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  inventoryItem InventoryItem  @relation(fields: [inventoryItemId], references: [id])
+  fromWarehouse Warehouse?     @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouse   Warehouse?     @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  user          User           @relation(fields: [createdBy], references: [id])
+
+  @@index([inventoryItemId, movementDate])
+  @@index([tenantId])
+  @@map("stock_movements")
+}
+
+// Purchase Orders
+model PurchaseOrder {
+  id                   String                @id @default(uuid())
+  tenantId             String                @map("tenant_id")
+  supplierId           String                @map("supplier_id")
+  orderNumber          String                @map("order_number")
+  orderDate            DateTime              @map("order_date")
+  expectedDeliveryDate DateTime?             @map("expected_delivery_date")
+  status               String                @default("DRAFT") // DRAFT, ORDERED, PARTIALLY_RECEIVED, RECEIVED, CANCELLED
+  totalAmount          Decimal?              @db.Decimal(15, 2) @map("total_amount")
+  createdAt            DateTime              @default(now()) @map("created_at")
+
+  // Relations
+  tenant    Tenant                  @relation(fields: [tenantId], references: [id])
+  supplier  Supplier                @relation(fields: [supplierId], references: [id])
+  lineItems PurchaseOrderLineItem[]
+
+  @@unique([tenantId, orderNumber])
+  @@index([tenantId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLineItem {
+  id               String  @id @default(uuid())
+  purchaseOrderId  String  @map("purchase_order_id")
+  inventoryItemId  String  @map("inventory_item_id")
+  quantity         Int
+  unitPrice        Decimal @db.Decimal(15, 2) @map("unit_price")
+
+  // Relations
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_line_items")
+}
+
+// Invoice Management with State Machine
+
+// Invoices
+model Invoice {
+  id                    String        @id @default(uuid())
+  tenantId              String        @map("tenant_id")
+  invoiceNumber         String        @map("invoice_number")
+  customerId            String        @map("customer_id")
+  invoiceDate           DateTime      @map("invoice_date")
+  dueDate               DateTime?     @map("due_date")
+  status                InvoiceStatus @default(DRAFT)
+  totalAmount           Decimal       @db.Decimal(15, 2) @map("total_amount")
+  taxAmount             Decimal       @db.Decimal(15, 2) @map("tax_amount")
+  linkedJournalEntryId  String?       @map("linked_journal_entry_id")
+  pdfPath               String?       @map("pdf_path")
+  notes                 String?
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  tenant              Tenant                   @relation(fields: [tenantId], references: [id])
+  customer            Customer                 @relation(fields: [customerId], references: [id])
+  lineItems           InvoiceLineItem[]
+  creditNoteApplications CreditNoteApplication[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId, status])
+  @@index([customerId])
+  @@index([invoiceDate])
+  @@map("invoices")
+}
+
+// Invoice Line Items
+model InvoiceLineItem {
+  id                String  @id @default(uuid())
+  invoiceId         String  @map("invoice_id")
+  inventoryItemId   String? @map("inventory_item_id")
+  description       String
+  quantity          Decimal @db.Decimal(10, 3)
+  unitPrice         Decimal @db.Decimal(15, 2) @map("unit_price")
+  taxRateId         String? @map("tax_rate_id")
+  lineTotal         Decimal @db.Decimal(15, 2) @map("line_total")
+
+  // Relations
+  invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+// Credit Notes
+model CreditNote {
+  id                    String            @id @default(uuid())
+  tenantId              String            @map("tenant_id")
+  creditNoteNumber      String            @map("credit_note_number")
+  customerId            String            @map("customer_id")
+  issueDate             DateTime          @map("issue_date")
+  reason                String?
+  totalAmount           Decimal           @db.Decimal(15, 2) @map("total_amount")
+  status                CreditNoteStatus  @default(DRAFT)
+  linkedJournalEntryId  String?           @map("linked_journal_entry_id")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  tenant       Tenant                   @relation(fields: [tenantId], references: [id])
+  customer     Customer                 @relation(fields: [customerId], references: [id])
+  applications CreditNoteApplication[]
+
+  @@unique([tenantId, creditNoteNumber])
+  @@index([tenantId])
+  @@map("credit_notes")
+}
+
+// Credit Note Applications (Many-to-Many)
+model CreditNoteApplication {
+  id               String   @id @default(uuid())
+  creditNoteId     String   @map("credit_note_id")
+  invoiceId        String   @map("invoice_id")
+  amountApplied    Decimal  @db.Decimal(15, 2) @map("amount_applied")
+  applicationDate  DateTime @map("application_date")
+
+  // Relations
+  creditNote CreditNote @relation(fields: [creditNoteId], references: [id])
+  invoice    Invoice    @relation(fields: [invoiceId], references: [id])
+
+  @@unique([creditNoteId, invoiceId])
+  @@map("credit_note_applications")
+}
+
+// GST & Tax Management
+
+// Tax Rates
+model TaxRate {
+  id       String  @id @default(uuid())
+  tenantId String? @map("tenant_id") // NULL for system tax rates
+  name     String
+  hsnCode  String? @map("hsn_code")
+  cgst     Decimal @db.Decimal(5, 2)
+  sgst     Decimal @db.Decimal(5, 2)
+  igst     Decimal @db.Decimal(5, 2)
+  cess     Decimal @default(0) @db.Decimal(5, 2)
+  isActive Boolean @default(true) @map("is_active")
+
+  // Relations
+  tenant           Tenant?           @relation(fields: [tenantId], references: [id])
+  inventoryItems   InventoryItem[]
+  invoiceLineItems InvoiceLineItem[]
+
+  @@index([hsnCode])
+  @@map("tax_rates")
+}
+
+// GST Returns
+model GstReturn {
+  id              String       @id @default(uuid())
+  tenantId        String       @map("tenant_id")
+  returnType      ReturnType   @map("return_type")
+  periodMonth     Int          @map("period_month")
+  periodYear      Int          @map("period_year")
+  totalSales      Decimal?     @db.Decimal(15, 2) @map("total_sales")
+  totalPurchases  Decimal?     @db.Decimal(15, 2) @map("total_purchases")
+  totalTaxPayable Decimal?     @db.Decimal(15, 2) @map("total_tax_payable")
+  status          ReturnStatus @default(DRAFT)
+  returnData      Json?        @map("return_data")
+  filedAt         DateTime?    @map("filed_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, returnType, periodMonth, periodYear])
+  @@index([tenantId])
+  @@index([status])
+  @@map("gst_returns")
+}
+
+// Webhook Management
+
+model Webhook {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  url             String
+  events          String[] // Array of event names
+  secret          String?
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id           String   @id @default(uuid())
+  webhookId    String   @map("webhook_id")
+  eventType    String   @map("event_type")
+  payload      Json
+  status       String   @default("PENDING") // PENDING, SUCCESS, FAILED
+  responseCode Int?     @map("response_code")
+  responseBody String?  @map("response_body")
+  attempts     Int      @default(0)
+  nextAttempt  DateTime? @map("next_attempt")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  webhook Webhook @relation(fields: [webhookId], references: [id])
+
+  @@index([webhookId])
+  @@index([status])
+  @@map("webhook_deliveries")
+}
+
+// Analytics & Reporting Models
+
+model AnalyticsSnapshot {
+  id                    String   @id @default(uuid())
+  tenantId              String   @map("tenant_id")
+  date                  DateTime
+  totalSales            Decimal  @db.Decimal(15, 2) @map("total_sales")
+  totalInvoices         Int      @map("total_invoices")
+  totalCustomers        Int      @map("total_customers")
+  averageOrderValue     Decimal  @db.Decimal(15, 2) @map("average_order_value")
+  inventoryValue        Decimal  @db.Decimal(15, 2) @map("inventory_value")
+  lowStockItems         Int      @map("low_stock_items")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, date])
+  @@index([tenantId])
+  @@map("analytics_snapshots")
+}

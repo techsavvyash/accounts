@@ -1,0 +1,2047 @@
+openapi: 3.0.0
+info:
+  title: Business Accounts Management API
+  version: 1.0.0
+  description: Comprehensive multi-tenant API for managing business accounts, inventory, invoicing, double-entry accounting, and GST compliance
+  contact:
+    name: API Support
+    email: support@businessaccounts.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://api.businessaccounts.com/api
+    description: Production server
+
+tags:
+  - name: Auth
+    description: Authentication and multi-tenant access
+  - name: Ledger
+    description: Double-entry accounting and financial ledger
+  - name: Accounts
+    description: Chart of accounts management
+  - name: Journal
+    description: Journal entries and transactions
+  - name: Products
+    description: Product and inventory item management
+  - name: Inventory
+    description: Inventory operations and stock management
+  - name: Parties
+    description: Customer and vendor management
+  - name: Invoices
+    description: Invoice operations and payment tracking
+  - name: GST
+    description: GST compliance and returns
+  - name: Analytics
+    description: Business analytics and insights
+  - name: Reports
+    description: Financial and business reports
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        success:
+          type: boolean
+          default: false
+      required: [error, message]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: true
+        message:
+          type: string
+        data:
+          type: object
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        isActive:
+          type: boolean
+        emailVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        tenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantMembership'
+
+    TenantMembership:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        roleId:
+          type: string
+          format: uuid
+        tenant:
+          $ref: '#/components/schemas/Tenant'
+        role:
+          $ref: '#/components/schemas/Role'
+
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        businessName:
+          type: string
+        gstin:
+          type: string
+          pattern: '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$'
+          nullable: true
+        pan:
+          type: string
+          pattern: '^[A-Z]{5}[0-9]{4}[A-Z]{1}$'
+          nullable: true
+        address:
+          type: object
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+
+    Permission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        resource:
+          type: string
+        action:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        accountType:
+          type: string
+          enum: [ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE]
+        normalBalance:
+          type: string
+          enum: [DEBIT, CREDIT]
+        parentAccountId:
+          type: string
+          format: uuid
+          nullable: true
+        isSystemAccount:
+          type: boolean
+          default: false
+        isActive:
+          type: boolean
+          default: true
+        currentBalance:
+          type: number
+          format: decimal
+        createdAt:
+          type: string
+          format: date-time
+
+    JournalEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        entryDate:
+          type: string
+          format: date
+        description:
+          type: string
+          nullable: true
+        referenceType:
+          type: string
+          nullable: true
+        referenceId:
+          type: string
+          format: uuid
+          nullable: true
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/JournalEntryLine'
+
+    JournalEntryLine:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        journalEntryId:
+          type: string
+          format: uuid
+        accountId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [DEBIT, CREDIT]
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+        description:
+          type: string
+          nullable: true
+        account:
+          $ref: '#/components/schemas/Account'
+
+    InventoryItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sku:
+          type: string
+        hsnCode:
+          type: string
+          nullable: true
+        unitType:
+          type: string
+          enum: [PIECE, KG, LITRE, METRE]
+        basePrice:
+          type: number
+          format: decimal
+        minStockLevel:
+          type: number
+          format: decimal
+          nullable: true
+        maxStockLevel:
+          type: number
+          format: decimal
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        stockLevels:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockLevel'
+
+    StockLevel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        inventoryItemId:
+          type: string
+          format: uuid
+        warehouseId:
+          type: string
+          format: uuid
+        quantityOnHand:
+          type: number
+          format: decimal
+        committedQuantity:
+          type: number
+          format: decimal
+          default: 0
+        availableQuantity:
+          type: number
+          format: decimal
+        lastUpdated:
+          type: string
+          format: date-time
+        warehouse:
+          $ref: '#/components/schemas/Warehouse'
+
+    Warehouse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        location:
+          type: string
+          nullable: true
+        isDefault:
+          type: boolean
+          default: false
+        isActive:
+          type: boolean
+          default: true
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        gstin:
+          type: string
+          nullable: true
+        pan:
+          type: string
+          nullable: true
+        address:
+          type: object
+          nullable: true
+        creditLimit:
+          type: number
+          format: decimal
+          nullable: true
+        paymentTerms:
+          type: integer
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        invoiceNumber:
+          type: string
+        customerId:
+          type: string
+          format: uuid
+        invoiceDate:
+          type: string
+          format: date
+        dueDate:
+          type: string
+          format: date
+          nullable: true
+        status:
+          type: string
+          enum: [DRAFT, SENT, PARTIALLY_PAID, PAID, OVERDUE, VOID]
+        totalAmount:
+          type: number
+          format: decimal
+        taxAmount:
+          type: number
+          format: decimal
+          default: 0
+        notes:
+          type: string
+          nullable: true
+        linkedJournalEntryId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        customer:
+          $ref: '#/components/schemas/Customer'
+        lineItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceLineItem'
+        payments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Payment'
+
+    InvoiceLineItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        invoiceId:
+          type: string
+          format: uuid
+        inventoryItemId:
+          type: string
+          format: uuid
+          nullable: true
+        description:
+          type: string
+        quantity:
+          type: number
+          format: decimal
+        unitPrice:
+          type: number
+          format: decimal
+        taxRateId:
+          type: string
+          format: uuid
+          nullable: true
+        lineTotal:
+          type: number
+          format: decimal
+        inventoryItem:
+          $ref: '#/components/schemas/InventoryItem'
+          nullable: true
+        taxRate:
+          $ref: '#/components/schemas/TaxRate'
+          nullable: true
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        invoiceId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: decimal
+        paymentDate:
+          type: string
+          format: date
+        paymentMethod:
+          type: string
+        referenceNo:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    TaxRate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        cgst:
+          type: number
+          format: decimal
+        sgst:
+          type: number
+          format: decimal
+        igst:
+          type: number
+          format: decimal
+        cess:
+          type: number
+          format: decimal
+          default: 0
+        description:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+
+    TrialBalance:
+      type: object
+      properties:
+        asOfDate:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            type: object
+            properties:
+              accountId:
+                type: string
+                format: uuid
+              accountName:
+                type: string
+              accountType:
+                type: string
+                enum: [ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE]
+              debitBalance:
+                type: number
+                format: decimal
+              creditBalance:
+                type: number
+                format: decimal
+        totals:
+          type: object
+          properties:
+            totalDebits:
+              type: number
+              format: decimal
+            totalCredits:
+              type: number
+              format: decimal
+            isBalanced:
+              type: boolean
+
+    ProfitLossStatement:
+      type: object
+      properties:
+        fromDate:
+          type: string
+          format: date
+        toDate:
+          type: string
+          format: date
+        revenue:
+          type: object
+          properties:
+            accounts:
+              type: array
+              items:
+                type: object
+                properties:
+                  accountName:
+                    type: string
+                  amount:
+                    type: number
+                    format: decimal
+            total:
+              type: number
+              format: decimal
+        expenses:
+          type: object
+          properties:
+            accounts:
+              type: array
+              items:
+                type: object
+                properties:
+                  accountName:
+                    type: string
+                  amount:
+                    type: number
+                    format: decimal
+            total:
+              type: number
+              format: decimal
+        summary:
+          type: object
+          properties:
+            grossRevenue:
+              type: number
+              format: decimal
+            totalExpenses:
+              type: number
+              format: decimal
+            netIncome:
+              type: number
+              format: decimal
+            netMargin:
+              type: number
+              format: decimal
+
+    BalanceSheet:
+      type: object
+      properties:
+        asOfDate:
+          type: string
+          format: date
+        assets:
+          type: object
+          properties:
+            accounts:
+              type: array
+              items:
+                type: object
+                properties:
+                  accountName:
+                    type: string
+                  balance:
+                    type: number
+                    format: decimal
+            total:
+              type: number
+              format: decimal
+        liabilities:
+          type: object
+          properties:
+            accounts:
+              type: array
+              items:
+                type: object
+                properties:
+                  accountName:
+                    type: string
+                  balance:
+                    type: number
+                    format: decimal
+            total:
+              type: number
+              format: decimal
+        equity:
+          type: object
+          properties:
+            accounts:
+              type: array
+              items:
+                type: object
+                properties:
+                  accountName:
+                    type: string
+                  balance:
+                    type: number
+                    format: decimal
+            total:
+              type: number
+              format: decimal
+        summary:
+          type: object
+          properties:
+            totalAssets:
+              type: number
+              format: decimal
+            totalLiabilities:
+              type: number
+              format: decimal
+            totalEquity:
+              type: number
+              format: decimal
+            isBalanced:
+              type: boolean
+
+paths:
+  # Authentication endpoints
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: User registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                name:
+                  type: string
+                  minLength: 1
+      responses:
+        201:
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                      refreshToken:
+                        type: string
+                      user:
+                        $ref: '#/components/schemas/User'
+                      tenants:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Tenant'
+        401:
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/tenant/{tenantId}:
+    post:
+      tags:
+        - Auth
+      summary: Select tenant for session
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Tenant selected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                      tenant:
+                        $ref: '#/components/schemas/Tenant'
+                      permissions:
+                        type: array
+                        items:
+                          type: string
+        403:
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        200:
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                      refreshToken:
+                        type: string
+        401:
+          description: Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: User logout
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /auth/profile:
+    get:
+      tags:
+        - Auth
+      summary: Get user profile
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: User profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/User'
+
+  # Ledger endpoints
+  /ledger/journal-entries:
+    post:
+      tags:
+        - Journal
+      summary: Create a new journal entry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - entryDate
+                - lines
+              properties:
+                entryDate:
+                  type: string
+                  format: date
+                description:
+                  type: string
+                referenceType:
+                  type: string
+                referenceId:
+                  type: string
+                  format: uuid
+                lines:
+                  type: array
+                  minItems: 2
+                  items:
+                    type: object
+                    required:
+                      - accountId
+                      - type
+                      - amount
+                    properties:
+                      accountId:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                        enum: [DEBIT, CREDIT]
+                      amount:
+                        type: number
+                        format: decimal
+                        minimum: 0.01
+                      description:
+                        type: string
+      responses:
+        201:
+          description: Journal entry created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/JournalEntry'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ledger/journal-entries/{id}:
+    get:
+      tags:
+        - Journal
+      summary: Get journal entry by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Journal entry details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/JournalEntry'
+        404:
+          description: Journal entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ledger/accounts:
+    get:
+      tags:
+        - Accounts
+      summary: Get chart of accounts
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Chart of accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      accounts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Account'
+                      summary:
+                        type: object
+                        properties:
+                          totalAccounts:
+                            type: integer
+                          accountsByType:
+                            type: object
+
+    post:
+      tags:
+        - Accounts
+      summary: Create a new account
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - accountType
+                - normalBalance
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                accountType:
+                  type: string
+                  enum: [ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE]
+                normalBalance:
+                  type: string
+                  enum: [DEBIT, CREDIT]
+                parentAccountId:
+                  type: string
+                  format: uuid
+      responses:
+        201:
+          description: Account created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Account'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ledger/accounts/{id}/ledger:
+    get:
+      tags:
+        - Accounts
+      summary: Get account ledger
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: fromDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: toDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: page
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: string
+      responses:
+        200:
+          description: Account ledger
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      account:
+                        $ref: '#/components/schemas/Account'
+                      transactions:
+                        type: array
+                        items:
+                          type: object
+                      summary:
+                        type: object
+        404:
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Products/Inventory endpoints  
+  /products:
+    get:
+      tags:
+        - Products
+      summary: List inventory items
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of inventory items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InventoryItem'
+                      pagination:
+                        type: object
+                        properties:
+                          page:
+                            type: integer
+                          limit:
+                            type: integer
+                          total:
+                            type: integer
+                          totalPages:
+                            type: integer
+
+    post:
+      tags:
+        - Products
+      summary: Create a new inventory item
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - sku
+                - unitType
+                - basePrice
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                description:
+                  type: string
+                sku:
+                  type: string
+                  minLength: 1
+                hsnCode:
+                  type: string
+                unitType:
+                  type: string
+                  enum: [PIECE, KG, LITRE, METRE]
+                basePrice:
+                  type: number
+                  format: decimal
+                  minimum: 0
+                minStockLevel:
+                  type: number
+                  format: decimal
+                maxStockLevel:
+                  type: number
+                  format: decimal
+      responses:
+        201:
+          description: Inventory item created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/InventoryItem'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /products/{id}:
+    get:
+      tags:
+        - Products
+      summary: Get inventory item by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Inventory item details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/InventoryItem'
+        404:
+          description: Inventory item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Products
+      summary: Update inventory item
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                basePrice:
+                  type: number
+                  format: decimal
+                minStockLevel:
+                  type: number
+                  format: decimal
+                maxStockLevel:
+                  type: number
+                  format: decimal
+      responses:
+        200:
+          description: Inventory item updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/InventoryItem'
+        404:
+          description: Inventory item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Products
+      summary: Delete inventory item
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Inventory item deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        404:
+          description: Inventory item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Customer/Parties endpoints
+  /parties:
+    get:
+      tags:
+        - Parties
+      summary: List all customers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      customers:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Customer'
+                      pagination:
+                        type: object
+
+    post:
+      tags:
+        - Parties
+      summary: Create a new customer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                gstin:
+                  type: string
+                pan:
+                  type: string
+                address:
+                  type: object
+                creditLimit:
+                  type: number
+                  format: decimal
+                paymentTerms:
+                  type: integer
+      responses:
+        201:
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Customer'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /parties/{id}:
+    get:
+      tags:
+        - Parties
+      summary: Get customer by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Customer details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Customer'
+        404:
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Parties
+      summary: Update customer
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                address:
+                  type: object
+                creditLimit:
+                  type: number
+                  format: decimal
+                paymentTerms:
+                  type: integer
+      responses:
+        200:
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Customer'
+        404:
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Invoice endpoints
+  /invoices:
+    get:
+      tags:
+        - Invoices
+      summary: List all invoices
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [DRAFT, SENT, PARTIALLY_PAID, PAID, OVERDUE, VOID]
+        - in: query
+          name: customerId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: fromDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: toDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: page
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      invoices:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Invoice'
+                      pagination:
+                        type: object
+
+    post:
+      tags:
+        - Invoices
+      summary: Create a new invoice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customerId
+                - invoiceDate
+                - lineItems
+              properties:
+                customerId:
+                  type: string
+                  format: uuid
+                invoiceDate:
+                  type: string
+                  format: date
+                dueDate:
+                  type: string
+                  format: date
+                lineItems:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - description
+                      - quantity
+                      - unitPrice
+                    properties:
+                      inventoryItemId:
+                        type: string
+                        format: uuid
+                      description:
+                        type: string
+                        minLength: 1
+                      quantity:
+                        type: number
+                        format: decimal
+                        minimum: 0.001
+                      unitPrice:
+                        type: number
+                        format: decimal
+                        minimum: 0.01
+                      taxRateId:
+                        type: string
+                        format: uuid
+                notes:
+                  type: string
+      responses:
+        201:
+          description: Invoice created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Invoice'
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /invoices/{id}:
+    get:
+      tags:
+        - Invoices
+      summary: Get invoice by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Invoice details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Invoice'
+        404:
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /invoices/{id}/send:
+    post:
+      tags:
+        - Invoices
+      summary: Send invoice (transition from DRAFT to SENT)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Invoice sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Invoice'
+        404:
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /invoices/{id}/void:
+    post:
+      tags:
+        - Invoices
+      summary: Void an invoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        200:
+          description: Invoice voided successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Invoice'
+        404:
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /invoices/{id}/payments:
+    post:
+      tags:
+        - Invoices
+      summary: Record payment for an invoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - paymentDate
+                - paymentMethod
+              properties:
+                amount:
+                  type: number
+                  format: decimal
+                  minimum: 0.01
+                paymentDate:
+                  type: string
+                  format: date
+                paymentMethod:
+                  type: string
+                  minLength: 1
+                referenceNo:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        200:
+          description: Payment recorded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      payment:
+                        $ref: '#/components/schemas/Payment'
+                      invoice:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          status:
+                            type: string
+                          totalAmount:
+                            type: number
+                            format: decimal
+                          totalPaid:
+                            type: number
+                            format: decimal
+                          remainingAmount:
+                            type: number
+                            format: decimal
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags:
+        - Invoices
+      summary: Get payments for an invoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Invoice payments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      payments:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Payment'
+                      summary:
+                        type: object
+                        properties:
+                          totalPaid:
+                            type: number
+                            format: decimal
+                          paymentCount:
+                            type: integer
+
+  # Financial Reports
+  /ledger/reports/trial-balance:
+    get:
+      tags:
+        - Reports
+      summary: Get trial balance report
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: asOfDate
+          schema:
+            type: string
+            format: date
+      responses:
+        200:
+          description: Trial balance report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/TrialBalance'
+
+  /ledger/reports/profit-loss:
+    get:
+      tags:
+        - Reports
+      summary: Get profit and loss statement
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: fromDate
+          required: true
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: toDate
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        200:
+          description: Profit & Loss statement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ProfitLossStatement'
+        400:
+          description: Bad request (fromDate must be before toDate)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /ledger/reports/balance-sheet:
+    get:
+      tags:
+        - Reports
+      summary: Get balance sheet report
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: asOfDate
+          schema:
+            type: string
+            format: date
+      responses:
+        200:
+          description: Balance sheet report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/BalanceSheet'
+
+  # Health endpoint
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      responses:
+        200:
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+
+security:
+  - bearerAuth: []
