@@ -56,27 +56,22 @@ export const analyticsRoutes = new Elysia({ prefix: '/analytics' })
       // Calculate total revenue
       const totalRevenue = paidInvoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0)
 
-      // Mock percentage changes for now (in a real app, you'd compare with previous period)
-      const mockData = {
+      // TODO: Calculate percentage changes by comparing with previous period
+      const dashboardData = {
         totalRevenue,
-        revenueChange: 12.5,
+        revenueChange: 0, // TODO: Compare with previous month's revenue
         totalInvoices,
-        invoiceChange: 8.2,
+        invoiceChange: 0, // TODO: Compare with previous month's invoices
         inventoryItems: totalInventoryItems,
-        inventoryChange: 5.7,
+        inventoryChange: 0, // TODO: Compare with previous month's inventory
         activeAccounts: totalCustomers + totalVendors,
-        accountsChange: 3.4,
-        recentActivities: [
-          { id: 1, type: "invoice", description: "Recent invoice created", time: "2 hours ago", status: "success" },
-          { id: 2, type: "payment", description: "Payment received", time: "4 hours ago", status: "success" },
-          { id: 3, type: "inventory", description: "Stock level updated", time: "6 hours ago", status: "success" },
-          { id: 4, type: "account", description: "New customer added", time: "1 day ago", status: "success" }
-        ]
+        accountsChange: 0, // TODO: Compare with previous month's accounts
+        recentActivities: [] // TODO: Implement real activity tracking from audit logs
       }
 
       return {
         success: true,
-        ...mockData
+        ...dashboardData
       }
 
     } catch (error) {

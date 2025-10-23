@@ -1,101 +1,14 @@
-import { Elysia } from 'elysia'
+/**
+ * Authentication Helper Functions
+ *
+ * This module provides helper functions for permission checking and RBAC.
+ * The main authentication is now handled by heimdall-auth middleware.
+ *
+ * @deprecated The JWT authMiddleware has been removed in favor of Heimdall authentication.
+ * Use heimdallAuthMiddleware from './heimdall-auth' instead.
+ */
+
 import { prisma } from '@accounts/database'
-
-export const authMiddleware = async ({ jwt, cookie, set, store, headers }: any) => {
-  try {
-    // Try to get token from cookie first, then from Authorization header
-    let token = cookie.auth?.value
-    
-    if (!token) {
-      const authHeader = headers.authorization
-      if (authHeader?.startsWith('Bearer ')) {
-        token = authHeader.slice(7)
-      }
-    }
-
-    if (!token) {
-      set.status = 401
-      return {
-        error: 'Unauthorized',
-        message: 'No authentication token provided'
-      }
-    }
-
-    const payload = await jwt.verify(token)
-
-    if (!payload || !payload.userId || !payload.tenantId) {
-      set.status = 401
-      return {
-        error: 'Unauthorized', 
-        message: 'Invalid or expired token'
-      }
-    }
-
-    // Get user with tenant relationship
-    const user = await prisma.user.findUnique({
-      where: {
-        id: payload.userId,
-        isActive: true
-      },
-      include: {
-        tenantUsers: {
-          where: {
-            tenantId: payload.tenantId
-          },
-          include: {
-            tenant: true,
-            role: {
-              include: {
-                rolePermissions: {
-                  include: {
-                    permission: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    })
-
-    if (!user) {
-      set.status = 401
-      return {
-        error: 'Unauthorized',
-        message: 'User not found or inactive'
-      }
-    }
-
-    const tenantUser = user.tenantUsers[0]
-    if (!tenantUser) {
-      set.status = 401
-      return {
-        error: 'Unauthorized',
-        message: 'User not associated with tenant'
-      }
-    }
-
-    // Store user context in request
-    store.userId = user.id
-    store.tenantId = payload.tenantId
-    store.roleId = tenantUser.roleId
-    store.roleName = tenantUser.role.name
-    store.user = user
-    store.tenant = tenantUser.tenant
-    store.permissions = tenantUser.role.rolePermissions.map(rp => ({
-      action: rp.permission.action,
-      resource: rp.permission.resource
-    }))
-
-  } catch (error) {
-    console.error('Authentication error:', error)
-    set.status = 401
-    return {
-      error: 'Unauthorized',
-      message: 'Authentication failed'
-    }
-  }
-}
 
 // RBAC permission checking middleware
 export const requirePermission = (resource: string, action: string) => {
