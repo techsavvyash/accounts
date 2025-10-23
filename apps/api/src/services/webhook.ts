@@ -292,10 +292,13 @@ function generateWebhookSecret(): string {
   return `whsec_${Math.random().toString(36).substring(2, 15)}${Date.now().toString(36)}`
 }
 
-// Start webhook manager when module loads
-webhookManager.start().catch(error => {
-  console.error('Failed to start webhook manager:', error)
-})
+// Webhook manager should be started explicitly from index.ts after server is ready
+// Not auto-started at module level to avoid port conflicts
+export const startWebhookManager = async () => {
+  console.log('Starting webhook manager...')
+  await webhookManager.start()
+  console.log('Webhook manager started successfully')
+}
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {

@@ -220,6 +220,67 @@ export const inventoryRoutes = new Elysia({ prefix: '/inventory' })
     }
   )
 
+  // Get stock levels for all inventory items
+  .get(
+    '/stock-levels',
+    async ({ store, posthog }) => {
+      try {
+        const { prisma } = await import('@accounts/database')
+
+        const stockLevels = await prisma.stockLevel.findMany({
+          where: {
+            inventoryItem: {
+              tenantId: store.tenantId
+            }
+          },
+          include: {
+            inventoryItem: {
+              select: {
+                id: true,
+                name: true,
+                sku: true
+              }
+            },
+            warehouse: {
+              select: {
+                id: true,
+                name: true,
+                isDefault: true
+              }
+            }
+          }
+        })
+
+        posthog?.track('inventory.stock_levels_viewed', {
+          totalItems: stockLevels.length
+        })
+
+        return {
+          success: true,
+          data: stockLevels.map(level => ({
+            inventoryItemId: level.inventoryItemId,
+            inventoryItemName: level.inventoryItem.name,
+            inventoryItemSku: level.inventoryItem.sku,
+            warehouseId: level.warehouseId,
+            warehouseName: level.warehouse.name,
+            isDefaultWarehouse: level.warehouse.isDefault,
+            quantityOnHand: level.quantityOnHand,
+            lastUpdated: level.lastUpdated
+          }))
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          error: 'Internal Server Error',
+          message: 'Failed to fetch stock levels'
+        }
+      }
+    },
+    {
+      beforeHandle: requirePermission('inventory', 'read')
+    }
+  )
+
   // Get low stock items
   .get(
     '/low-stock',
