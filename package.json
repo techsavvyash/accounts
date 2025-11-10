@@ -18,6 +18,8 @@
     "db:migrate": "bun run --filter '@accounts/database' db:migrate",
     "db:studio": "bun run --filter '@accounts/database' db:studio",
     "test": "bun test",
+    "test:encryption": "node tests/validate-encryption.js && node tests/validate-api-integration.js && node tests/validate-e2e-flow.js",
+    "encrypt:existing-data": "bun run scripts/encrypt-existing-data.ts",
     "lint": "bun run --filter '*' lint",
     "typecheck": "bun run --filter '*' typecheck"
   },
