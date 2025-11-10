@@ -18,7 +18,19 @@ import { webhooksRoutes } from './routes/webhooks'
 import { errorHandler } from './middleware/error-handler'
 import { authMiddleware } from './middleware/auth'
 import { posthogMiddleware } from './middleware/posthog'
+import { encryptionContext, addEncryptionInfo } from './middleware/encryption'
+import { initializeEncryption, setupTenantEncryption } from './services/encryption'
 import { config } from './config'
+
+// Initialize encryption system on startup
+initializeEncryption()
+
+// Setup encryption keys for existing tenants (run once)
+if (process.env.SETUP_ENCRYPTION === 'true') {
+  setupTenantEncryption()
+    .then(() => console.log('✅ Tenant encryption setup complete'))
+    .catch((err) => console.error('❌ Tenant encryption setup failed:', err))
+}
 
 const app = new Elysia()
   .use(
@@ -58,6 +70,7 @@ const app = new Elysia()
   )
   .onError(errorHandler)
   .derive(posthogMiddleware)
+  .derive(encryptionContext)
   .group('/api', (app) =>
     app
       .use(authRoutes)
@@ -80,7 +93,8 @@ const app = new Elysia()
   )
   .get('/health', () => ({
     status: 'healthy',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    encryption: addEncryptionInfo()
   }))
   .listen(config.PORT)
 

@@ -89,6 +89,7 @@ model Tenant {
   taxRates             TaxRate[]
   analyticsSnapshots   AnalyticsSnapshot[]
   purchaseOrders       PurchaseOrder[]
+  encryptionKeys       EncryptionKey[]
 
   @@map("tenants")
 }
@@ -617,4 +618,23 @@ model AnalyticsSnapshot {
   @@unique([tenantId, date])
   @@index([tenantId])
   @@map("analytics_snapshots")
+}
+
+// Encryption Key Management
+
+model EncryptionKey {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  encryptedKey String   @map("encrypted_key") @db.Text // DEK encrypted with MEK
+  algorithm    String   @default("aes-256-gcm")
+  version      Int      @default(1)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  rotatedAt    DateTime? @map("rotated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isActive])
+  @@map("encryption_keys")
 }

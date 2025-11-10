@@ -12,5 +12,6 @@ export const config = {
   S3_REGION: process.env.S3_REGION || 'us-east-1',
   S3_ACCESS_KEY: process.env.S3_ACCESS_KEY || '',
   S3_SECRET_KEY: process.env.S3_SECRET_KEY || '',
+  MASTER_ENCRYPTION_KEY: process.env.MASTER_ENCRYPTION_KEY || '',
   NODE_ENV: process.env.NODE_ENV || 'development'
 }

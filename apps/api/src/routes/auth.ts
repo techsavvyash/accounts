@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { prisma, db } from '@accounts/database'
 import { authSchema } from '@accounts/shared'
 import { config } from '../config'
+import { setupTenantKey } from '../services/encryption'
 
 export const authRoutes = new Elysia({ prefix: '/auth' })
   .post(
@@ -62,6 +63,9 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
             roleId: ownerRole.id
           }
         })
+
+        // Setup encryption key for the new tenant
+        await setupTenantKey(tenant.id)
 
         posthog?.track('user_registered', {
           userId: user.id,
