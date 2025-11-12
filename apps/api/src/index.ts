@@ -14,6 +14,7 @@ import { gstRoutes } from './routes/gst'
 import { analyticsRoutes } from './routes/analytics'
 import { reportRoutes } from './routes/reports'
 import { webhooksRoutes } from './routes/webhooks'
+import { seoRoutes } from './routes/seo'
 
 import { errorHandler } from './middleware/error-handler'
 import { authMiddleware } from './middleware/auth'
@@ -71,6 +72,8 @@ const app = new Elysia()
   .onError(errorHandler)
   .derive(posthogMiddleware)
   .derive(encryptionContext)
+  // Public SEO routes (no auth required)
+  .use(seoRoutes)
   .group('/api', (app) =>
     app
       .use(authRoutes)
