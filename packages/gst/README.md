@@ -331,11 +331,143 @@ const hsnInfo = HSNValidator.getChapterInfo('84713000')
 console.log(hsnInfo)
 // { chapter: '84', description: 'Nuclear reactors, boilers, machinery...' }
 
+// Get detailed HSN information including GST rate
+const detailedInfo = HSNValidator.getDetailedInfo('84713000')
+console.log(detailedInfo)
+// {
+//   code: '84713000',
+//   description: 'Portable automatic data processing machines, weighing not more than 10 kg (Laptops)',
+//   chapterDescription: 'Nuclear Reactors, Boilers, Machinery and Mechanical Appliances; Parts Thereof',
+//   gstRate: 18,
+//   unit: 'NOS'
+// }
+
+// Search HSN codes
+const results = HSNValidator.search('laptop')
+// Returns array of matching HSN codes
+
 // Validate SAC code (6 digits)
 const isValidSAC = SACValidator.validate('998314')
 
 // Get SAC category info
 const sacInfo = SACValidator.getCategoryInfo('998314')
+```
+
+### HSN Registry
+
+The package includes a comprehensive HSN (Harmonized System of Nomenclature) Registry with:
+- **All 99 HSN Chapters** with descriptions
+- **100+ Common HSN Codes** (4, 6, and 8-digit codes)
+- **GST Rate Recommendations** for each code
+- **Cess Information** for applicable items
+- **Unit of Measurement** (NOS, KGM, etc.)
+
+#### Using the HSN Registry
+
+```typescript
+import { HSNRegistry } from '@accounts/gst'
+
+// Get all HSN chapters
+const chapters = HSNRegistry.getAllChapters()
+console.log(`Total chapters: ${chapters.length}`) // 99
+
+// Get specific chapter
+const chapter = HSNRegistry.getChapter('84')
+console.log(chapter.description)
+// 'Nuclear Reactors, Boilers, Machinery and Mechanical Appliances; Parts Thereof'
+
+// Lookup HSN code with details
+const hsnInfo = HSNRegistry.lookup('84713000')
+console.log(hsnInfo)
+// {
+//   isValid: true,
+//   code: '84713000',
+//   description: 'Portable automatic data processing machines, weighing not more than 10 kg (Laptops)',
+//   gstRate: 18,
+//   unit: 'NOS',
+//   chapterDescription: '...'
+// }
+
+// Get recommended GST rate for any HSN code
+const rate = HSNRegistry.getRecommendedGSTRate('84713000')
+console.log(rate) // 18
+
+// Search HSN codes by description
+const laptops = HSNRegistry.searchByDescription('laptop')
+console.log(laptops)
+// [
+//   { code: '84713000', description: 'Portable automatic data processing machines...', gstRate: 18 },
+//   ...
+// ]
+
+// Get all HSN codes for a chapter
+const chapter84Codes = HSNRegistry.getByChapter('84')
+console.log(chapter84Codes.length)
+
+// Get all HSN codes by GST rate
+const items18Percent = HSNRegistry.getByGSTRate(18)
+console.log(items18Percent.length)
+
+// Get chapters by section
+const section16 = HSNRegistry.getChaptersBySection('XVI')
+// Returns machinery and electrical equipment chapters
+
+// Get detailed information
+const details = HSNRegistry.getDetails('870323')
+console.log(details)
+// {
+//   code: '870323',
+//   chapter: { code: '87', description: '...', section: 'XVII' },
+//   details: {
+//     code: '870323',
+//     description: 'Vehicles with spark-ignition...',
+//     gstRate: 28,
+//     cess: 17,
+//     unit: 'NOS'
+//   },
+//   recommendedGSTRate: 28
+// }
+
+// Get registry statistics
+const stats = HSNRegistry.getCount()
+console.log(stats)
+// { chapters: 99, codes: 100+ }
+```
+
+#### HSN Code Examples
+
+The registry includes common items across all categories:
+- **Food Items**: Rice (1006), Wheat (1001), Milk (0401), etc.
+- **Textiles**: Cotton fabrics (52), Apparel (61, 62), Footwear (64)
+- **Electronics**: Laptops (847130), Mobile phones (851712), Printers (844331)
+- **Automobiles**: Cars (8703), Motorcycles (8711), Bicycles (8712)
+- **Pharmaceuticals**: Medicines (30), with 12% GST
+- **Cosmetics**: Perfumes (3303), Makeup (3304), Soaps (3401)
+- **Furniture**: Office furniture (940330), Bedroom furniture (940350)
+
+#### Integration with GST Calculations
+
+```typescript
+// HSN Registry automatically provides GST rates for calculations
+const hsn = '847130' // Laptop
+const rate = HSNRegistry.getRecommendedGSTRate(hsn)
+
+const tax = GST.quickCalculate(
+  50000,  // amount
+  rate,   // uses HSN-recommended rate (18%)
+  '27',   // supplier state
+  '29'    // customer state
+)
+
+// The calculator automatically uses HSN registry when HSN is provided
+const taxWithHSN = GST.getGSTInfo(50000, '847130', '27', '29')
+console.log(taxWithHSN)
+// {
+//   applicableRate: 18,
+//   calculation: { taxableAmount: 50000, igst: 9000, ... },
+//   hsnInfo: { chapter: '84', description: '...' },
+//   isInterState: true
+// }
 ```
 
 ### Batch Calculations

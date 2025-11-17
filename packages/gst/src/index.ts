@@ -30,6 +30,15 @@ export type {
   PortalFileResult
 } from './portal'
 
+// Export HSN Registry
+export {
+  HSNRegistry
+} from './hsn-registry'
+export type {
+  HSNChapter,
+  HSNCode
+} from './hsn-registry'
+
 // Export error classes
 export {
   GSTError,

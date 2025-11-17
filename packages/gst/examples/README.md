@@ -79,6 +79,20 @@ End-to-end GST compliance workflow:
 
 **Use this when:** You want to understand the complete GST filing process.
 
+### 6. HSN Registry Usage (`06-hsn-registry-usage.ts`)
+
+Comprehensive HSN Registry demonstration:
+- Browsing all 99 HSN chapters
+- Looking up specific HSN codes
+- Searching HSN codes by description
+- Getting recommended GST rates
+- Filtering codes by chapter or rate
+- Finding items with cess
+- Integration with GST calculations
+- Advanced search and filtering
+
+**Use this when:** You need to work with HSN codes, find GST rates, or search for products.
+
 ## Example Data
 
 All examples use realistic test data:

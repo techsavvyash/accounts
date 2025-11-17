@@ -1,4 +1,5 @@
 import { GSTINValidationError, GST_STATE_CODES, PANSchema, HSNSchema, SACSchema } from './types'
+import { HSNRegistry } from './hsn-registry'
 
 /**
  * Validates GSTIN format and checksum
@@ -206,48 +207,44 @@ export class HSNValidator {
 
   /**
    * Gets HSN chapter and description based on first 2 digits
+   * Now uses the comprehensive HSN Registry
    */
   static getChapterInfo(hsn: string): { chapter: string; description: string } {
     this.validate(hsn)
-    
-    const chapter = hsn.substring(0, 2)
-    
-    // Basic HSN chapter mapping (simplified)
-    const chapterMap: Record<string, string> = {
-      '01': 'Live Animals',
-      '02': 'Meat and Edible Meat Offal', 
-      '03': 'Fish and Crustaceans',
-      '04': 'Dairy Produce; Birds\' Eggs; Natural Honey',
-      '05': 'Products of Animal Origin',
-      '06': 'Live Trees and Other Plants',
-      '07': 'Edible Vegetables',
-      '08': 'Edible Fruit and Nuts',
-      '09': 'Coffee, Tea, Maté and Spices',
-      '10': 'Cereals',
-      '11': 'Products of the Milling Industry',
-      '12': 'Oil Seeds and Oleaginous Fruits',
-      '13': 'Lac; Gums, Resins',
-      '14': 'Vegetable Plaiting Materials',
-      '15': 'Animal or Vegetable Fats and Oils',
-      '16': 'Preparations of Meat, Fish or Crustaceans',
-      '17': 'Sugars and Sugar Confectionery',
-      '18': 'Cocoa and Cocoa Preparations',
-      '19': 'Preparations of Cereals, Flour, Starch or Milk',
-      '20': 'Preparations of Vegetables, Fruit, Nuts',
-      '21': 'Miscellaneous Edible Preparations',
-      '22': 'Beverages, Spirits and Vinegar',
-      '23': 'Residues and Waste from the Food Industries',
-      '24': 'Tobacco and Manufactured Tobacco Substitutes',
-      '25': 'Salt; Sulphur; Earths and Stone; Plastering Materials',
-      // Add more as needed...
-      '84': 'Nuclear Reactors, Boilers, Machinery and Mechanical Appliances',
-      '85': 'Electrical Machinery and Equipment'
-    }
+
+    const chapter = hsn.substring(0, 2).padStart(2, '0')
+    const chapterInfo = HSNRegistry.getChapter(chapter)
 
     return {
       chapter,
-      description: chapterMap[chapter] || 'Unknown Chapter'
+      description: chapterInfo?.description || 'Unknown Chapter'
     }
+  }
+
+  /**
+   * Get detailed HSN information including recommended GST rate
+   */
+  static getDetailedInfo(hsn: string): {
+    code: string
+    description: string
+    chapterDescription?: string
+    gstRate?: number
+    cess?: number
+    unit?: string
+  } {
+    this.validate(hsn)
+    return HSNRegistry.lookup(hsn)
+  }
+
+  /**
+   * Search HSN codes by description
+   */
+  static search(query: string): Array<{
+    code: string
+    description: string
+    gstRate?: number
+  }> {
+    return HSNRegistry.searchByDescription(query)
   }
 }
 
