@@ -1,5 +1,13 @@
 import { prisma } from '@accounts/database'
-import { GST, GSTInvoice, GSTR1Return, GSTR3BReturn, GSTTransactionType } from '@accounts/gst'
+import {
+  GST,
+  GSTInvoice,
+  GSTR1Return,
+  GSTR3BReturn,
+  GSTTransactionType,
+  HSNRegistry,
+  GSTPortalHelper
+} from '@accounts/gst'
 import { trackEvent } from '../middleware/posthog'
 
 export class GSTService {
@@ -339,5 +347,221 @@ export class GSTService {
    */
   static calculateReverseGST(inclusiveAmount: number, gstRate: number) {
     return GST.calculateReverseGST(inclusiveAmount, gstRate)
+  }
+
+  // ==================== HSN Registry Methods ====================
+
+  /**
+   * Get all HSN chapters
+   */
+  static getHSNChapters() {
+    return HSNRegistry.getAllChapters()
+  }
+
+  /**
+   * Get specific HSN chapter by code
+   */
+  static getHSNChapter(code: string) {
+    return HSNRegistry.getChapter(code)
+  }
+
+  /**
+   * Get HSN chapters by section
+   */
+  static getHSNChaptersBySection(section: string) {
+    return HSNRegistry.getChaptersBySection(section)
+  }
+
+  /**
+   * Search HSN codes by description
+   */
+  static searchHSNCodes(query: string) {
+    return HSNRegistry.searchByDescription(query)
+  }
+
+  /**
+   * Find HSN code by exact code
+   */
+  static findHSNCode(code: string) {
+    return HSNRegistry.findByCode(code)
+  }
+
+  /**
+   * Get all HSN codes for a chapter
+   */
+  static getHSNCodesByChapter(chapter: string) {
+    return HSNRegistry.getByChapter(chapter)
+  }
+
+  /**
+   * Get all HSN codes with specific GST rate
+   */
+  static getHSNCodesByRate(rate: number) {
+    return HSNRegistry.getByGSTRate(rate)
+  }
+
+  /**
+   * Get recommended GST rate for HSN/SAC code
+   */
+  static getRecommendedGSTRate(code: string) {
+    return HSNRegistry.getRecommendedGSTRate(code)
+  }
+
+  /**
+   * Lookup detailed HSN information
+   */
+  static lookupHSN(code: string) {
+    return HSNRegistry.lookup(code)
+  }
+
+  /**
+   * Get HSN details including chapter info
+   */
+  static getHSNDetails(code: string) {
+    return HSNRegistry.getDetails(code)
+  }
+
+  /**
+   * Get all registered HSN codes
+   */
+  static getAllHSNCodes() {
+    return HSNRegistry.getAllCodes()
+  }
+
+  /**
+   * Get HSN registry statistics
+   */
+  static getHSNCount() {
+    return HSNRegistry.getCount()
+  }
+
+  // ==================== Portal Export Methods ====================
+
+  /**
+   * Export GSTR-1 for portal upload
+   */
+  static exportGSTR1ForPortal(gstr1: GSTR1Return, options?: { pretty?: boolean; validate?: boolean }) {
+    return GSTPortalHelper.exportGSTR1ForPortal(gstr1, options)
+  }
+
+  /**
+   * Export GSTR-3B for portal upload
+   */
+  static exportGSTR3BForPortal(gstr3b: GSTR3BReturn, options?: { pretty?: boolean; validate?: boolean }) {
+    return GSTPortalHelper.exportGSTR3BForPortal(gstr3b, options)
+  }
+
+  /**
+   * Generate complete portal package (GSTR-1 + GSTR-3B)
+   */
+  static generatePortalPackage(gstr1: GSTR1Return, gstr3b: GSTR3BReturn) {
+    return GSTPortalHelper.generatePortalPackage(gstr1, gstr3b)
+  }
+
+  /**
+   * Get portal upload instructions
+   */
+  static getPortalUploadInstructions(returnType: 'GSTR-1' | 'GSTR-3B') {
+    // Return structured instructions for API consumers
+    const baseInstructions = [
+      { step: 1, action: `Visit the GST Portal`, url: 'https://www.gst.gov.in/' },
+      { step: 2, action: 'Login with your credentials' },
+      { step: 3, action: `Navigate to Returns Dashboard > ${returnType}` },
+      { step: 4, action: 'Select the relevant tax period' },
+      { step: 5, action: 'Click on "Prepare Offline"' },
+      { step: 6, action: 'Download the offline tool or use JSON upload' },
+      { step: 7, action: 'Upload the generated JSON file' },
+      { step: 8, action: 'Review the uploaded data' },
+      { step: 9, action: 'Submit the return after verification' }
+    ]
+
+    const resources = {
+      'GSTR-1': {
+        portal: 'https://www.gst.gov.in/',
+        offlineTool: 'https://www.gst.gov.in/download/returns',
+        tutorial: 'https://tutorial.gst.gov.in/userguide/returns/index.htm',
+        helpdesk: 'https://selfservice.gstsystem.in/'
+      },
+      'GSTR-3B': {
+        portal: 'https://www.gst.gov.in/',
+        offlineTool: 'https://www.gst.gov.in/download/returns',
+        tutorial: 'https://tutorial.gst.gov.in/userguide/returns/gstr3b.htm',
+        helpdesk: 'https://selfservice.gstsystem.in/'
+      }
+    }
+
+    return {
+      instructions: baseInstructions,
+      resources: resources[returnType],
+      notes: [
+        'Ensure you have a valid Digital Signature Certificate (DSC) or EVC',
+        'File the return before the due date to avoid late fees',
+        'Keep backups of all generated JSON files',
+        'Verify all data before final submission'
+      ]
+    }
+  }
+
+  /**
+   * Validate file size for portal upload
+   */
+  static validatePortalFileSize(sizeInBytes: number) {
+    return GSTPortalHelper.validateFileSize(sizeInBytes)
+  }
+
+  // ==================== Additional Validation Methods ====================
+
+  /**
+   * Validate PAN number
+   */
+  static validatePAN(pan: string) {
+    try {
+      GST.validatePAN(pan)
+      return {
+        isValid: true,
+        info: GST.extractPANInfo(pan)
+      }
+    } catch (error: any) {
+      return {
+        isValid: false,
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Validate HSN code
+   */
+  static validateHSN(hsn: string) {
+    try {
+      GST.validateHSN(hsn)
+      return {
+        isValid: true,
+        info: GST.getHSNChapterInfo(hsn)
+      }
+    } catch (error: any) {
+      return {
+        isValid: false,
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Validate SAC code
+   */
+  static validateSAC(sac: string) {
+    try {
+      GST.validateSAC(sac)
+      return {
+        isValid: true,
+        info: GST.getSACCategoryInfo(sac)
+      }
+    } catch (error: any) {
+      return {
+        isValid: false,
+        error: error.message
+      }
+    }
   }
 }
