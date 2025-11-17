@@ -21,6 +21,15 @@ export {
   GSTReturnGenerator
 } from './returns'
 
+// Export portal integration helpers
+export {
+  GSTPortalHelper
+} from './portal'
+export type {
+  PortalFileOptions,
+  PortalFileResult
+} from './portal'
+
 // Export error classes
 export {
   GSTError,
