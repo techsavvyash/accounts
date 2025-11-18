@@ -470,6 +470,192 @@ console.log(taxWithHSN)
 // }
 ```
 
+#### HSN API Integration (NEW!)
+
+The HSN Registry now supports **external API integration** with automatic fallback to hard-coded data!
+
+**Features:**
+- ✅ Works out-of-the-box with hard-coded HSN data (no setup required)
+- ✅ Optional API integration for comprehensive HSN coverage
+- ✅ Supports multiple API providers with priority ordering
+- ✅ Automatic fallback to hard-coded data if APIs fail
+- ✅ Built-in caching to reduce API calls and costs
+- ✅ Easy to extend with custom providers
+
+**Supported API Providers:**
+
+1. **E-way Bill Government API** (Priority 1)
+   - Official Government of India API
+   - Requires GST registration and API credentials
+   - Free for registered taxpayers
+   - Docs: https://docs.ewaybillgst.gov.in/apidocs/
+
+2. **Sandbox.co.in** (Priority 2)
+   - Third-party Tax API provider
+   - 14-day free trial, then paid subscription
+   - Docs: https://developer.sandbox.co.in/
+
+**Quick Setup:**
+
+```typescript
+import {
+  HSNRegistry,
+  createEWayBillProvider,
+  createSandboxProvider
+} from '@accounts/gst'
+
+// Auto-configure from environment variables
+const ewayProvider = createEWayBillProvider()
+const sandboxProvider = createSandboxProvider()
+
+if (ewayProvider) HSNRegistry.registerProvider(ewayProvider)
+if (sandboxProvider) HSNRegistry.registerProvider(sandboxProvider)
+
+// Now use async lookup to get data from API with fallback
+const hsnData = await HSNRegistry.lookupAsync('8471')
+console.log(hsnData)
+// {
+//   isValid: true,
+//   code: '8471',
+//   description: '...',
+//   gstRate: 18,
+//   source: 'api',        // or 'cache' or 'fallback'
+//   provider: 'ewaybill'  // which provider was used
+// }
+```
+
+**Environment Variables:**
+
+Create a `.env` file (see `.env.example` for full documentation):
+
+```bash
+# E-way Bill API
+EWAYBILL_ENABLED=true
+EWAYBILL_USERNAME=your_username
+EWAYBILL_PASSWORD=your_password
+EWAYBILL_APP_KEY=your_app_key
+EWAYBILL_GSTIN=your_gstin
+
+# Sandbox.co.in API
+SANDBOX_ENABLED=true
+SANDBOX_API_KEY=your_api_key
+SANDBOX_API_SECRET=your_api_secret
+```
+
+**Manual Configuration:**
+
+```typescript
+import { EWayBillProvider, SandboxProvider, HSNRegistry } from '@accounts/gst'
+
+// Configure E-way Bill provider
+const ewayProvider = new EWayBillProvider({
+  enabled: true,
+  priority: 1,  // Higher priority (tried first)
+  baseURL: 'https://api.ewaybillgst.gov.in',
+  username: 'your_username',
+  password: 'your_password',
+  appKey: 'your_app_key',
+  gstin: 'your_gstin',
+  cacheEnabled: true,
+  cacheTTL: 24 * 60 * 60 * 1000  // 24 hours
+})
+
+// Configure Sandbox provider
+const sandboxProvider = new SandboxProvider({
+  enabled: true,
+  priority: 2,  // Lower priority (fallback)
+  baseURL: 'https://api.sandbox.co.in/v2',
+  apiKey: 'your_api_key',
+  apiSecret: 'your_api_secret',
+  cacheEnabled: true
+})
+
+// Register providers
+HSNRegistry.registerProvider(ewayProvider)
+HSNRegistry.registerProvider(sandboxProvider)
+```
+
+**Usage:**
+
+```typescript
+// Async lookup (tries API first, then fallback)
+const result = await HSNRegistry.lookupAsync('8471')
+console.log(result.source)  // 'api', 'cache', or 'fallback'
+console.log(result.provider)  // 'ewaybill', 'sandbox', or undefined
+
+// API-only mode (no fallback)
+const apiOnly = await HSNRegistry.lookupAsync('8471', true)
+
+// Sync lookup (hard-coded data only, backward compatible)
+const syncResult = HSNRegistry.lookup('8471')
+
+// Manage cache
+const provider = HSNRegistry.getProviders()[0]
+console.log(provider.getCacheSize())
+provider.clearCache()
+```
+
+**How it Works:**
+
+1. **Try API Providers** (in priority order)
+   - E-way Bill API (priority 1)
+   - Sandbox API (priority 2)
+   - Returns cached result if available
+
+2. **Fallback to Hard-coded Data**
+   - If all APIs fail or return null
+   - Uses the built-in HSN registry
+   - Always works, even without API credentials
+
+3. **Caching Layer**
+   - Reduces API calls and costs
+   - Configurable TTL (default: 24 hours)
+   - Improves performance
+
+**Benefits:**
+
+- **Zero Setup**: Works immediately with hard-coded data
+- **Comprehensive Coverage**: API provides all 100,000+ HSN codes
+- **Reliable**: Automatic fallback ensures your app always works
+- **Cost-Effective**: Caching reduces API calls
+- **Extensible**: Easy to add your own API providers
+
+**Example: Custom Provider**
+
+Create your own HSN API provider:
+
+```typescript
+import { HSNAPIProvider, HSNLookupResult, HSNProviderConfig } from '@accounts/gst'
+
+class MyCustomProvider extends HSNAPIProvider {
+  getName(): string {
+    return 'my-custom-provider'
+  }
+
+  protected async fetchFromAPI(code: string): Promise<HSNLookupResult | null> {
+    const response = await fetch(`https://my-api.com/hsn/${code}`)
+    const data = await response.json()
+
+    return {
+      code: data.hsn_code,
+      description: data.description,
+      gstRate: data.gst_rate,
+      source: 'api',
+      provider: this.getName()
+    }
+  }
+}
+
+// Register your provider
+const myProvider = new MyCustomProvider({
+  enabled: true,
+  priority: 1
+})
+HSNRegistry.registerProvider(myProvider)
+```
+
+See `examples/07-hsn-api-integration.ts` for complete examples.
+
 ### Batch Calculations
 
 Calculate GST for multiple items at once:

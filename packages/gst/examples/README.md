@@ -93,6 +93,27 @@ Comprehensive HSN Registry demonstration:
 
 **Use this when:** You need to work with HSN codes, find GST rates, or search for products.
 
+### 7. HSN API Integration (`07-hsn-api-integration.ts`) **NEW!**
+
+HSN API integration with fallback to hard-coded data:
+- Default usage with hard-coded registry data
+- E-way Bill Government API integration
+- Sandbox.co.in API integration
+- Multiple providers with priority ordering
+- Caching and performance optimization
+- API-only mode vs fallback mode
+- Custom provider creation
+- Environment variable configuration
+
+**Use this when:** You want to integrate external HSN APIs for comprehensive coverage while maintaining fallback to built-in data.
+
+**Features demonstrated:**
+- Works out-of-the-box with hard-coded data (no API required)
+- Optional API integration for 100,000+ HSN codes
+- Automatic fallback ensures reliability
+- Built-in caching reduces costs
+- Easy to extend with custom providers
+
 ## Example Data
 
 All examples use realistic test data:
