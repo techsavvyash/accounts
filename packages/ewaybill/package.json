@@ -1,0 +1,42 @@
+{
+  "name": "@accounts/ewaybill",
+  "version": "1.0.0",
+  "description": "E-Way Bill API integration package for India - Generate, manage, and track electronic waybills",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir=dist --target=node --format=esm --splitting --minify",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "ewaybill",
+    "e-way-bill",
+    "eway-bill",
+    "gst",
+    "gstin",
+    "india",
+    "logistics",
+    "transport",
+    "compliance",
+    "ewb"
+  ],
+  "author": "Business Accounts Management",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "zod": "^3.22.4"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  }
+}

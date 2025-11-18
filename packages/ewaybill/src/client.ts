@@ -1,0 +1,411 @@
+/**
+ * E-Way Bill API Client
+ * Main client for interacting with E-Way Bill API
+ */
+
+import { EWayBillAuth } from './auth'
+import { EWayBillValidator } from './validation'
+import { EWayBillUtils } from './utils'
+import {
+  EWayBillConfig,
+  GenerateEWayBillRequest,
+  GenerateEWayBillResponse,
+  UpdateTransportDetailsRequest,
+  UpdateTransportDetailsResponse,
+  CancelEWayBillRequest,
+  CancelEWayBillResponse,
+  ExtendValidityRequest,
+  ExtendValidityResponse,
+  GetEWayBillDetailsRequest,
+  EWayBillDetails,
+  GetEWayBillsByDateRequest,
+  EWayBillSummary,
+  RejectEWayBillRequest,
+  RejectEWayBillResponse,
+  EWayBillAPIResponse,
+  APIError,
+  AuthenticationError
+} from './types'
+
+export class EWayBillClient {
+  private auth: EWayBillAuth
+  private config: EWayBillConfig
+  private cache: Map<string, { data: any; expiry: number }> = new Map()
+
+  constructor(config: EWayBillConfig) {
+    this.config = {
+      baseURL: 'https://api.ewaybillgst.gov.in',
+      apiVersion: 'v1.03',
+      timeout: 30000,
+      debug: false,
+      cacheEnabled: true,
+      cacheTTL: 3600000, // 1 hour
+      maxRetries: 3,
+      retryDelay: 1000,
+      ...config
+    }
+
+    this.auth = new EWayBillAuth(this.config)
+  }
+
+  /**
+   * Generate E-Way Bill
+   */
+  async generate(request: GenerateEWayBillRequest): Promise<GenerateEWayBillResponse> {
+    // Validate request
+    EWayBillValidator.validateGenerateRequest(request)
+
+    // Ensure authenticated
+    await this.auth.ensureAuthenticated()
+
+    const url = `${this.config.baseURL}/${this.config.apiVersion}/ewayapi`
+
+    const response = await this.makeRequest<GenerateEWayBillResponse>(
+      url,
+      'POST',
+      request
+    )
+
+    return response
+  }
+
+  /**
+   * Update transport details (Part B)
+   */
+  async updateTransportDetails(
+    request: UpdateTransportDetailsRequest
+  ): Promise<UpdateTransportDetailsResponse> {
+    // Validate request
+    EWayBillValidator.validateUpdateRequest(request)
+
+    // Ensure authenticated
+    await this.auth.ensureAuthenticated()
+
+    const url = `${this.config.baseURL}/${this.config.apiVersion}/ewayapi`
+
+    const response = await this.makeRequest<UpdateTransportDetailsResponse>(
+      url,
+      'POST',
+      {
+        ...request,
+        updateType: 'VEHEWB' // Update vehicle/transport details
+      }
+    )
+
+    return response
+  }
+
+  /**
+   * Cancel E-Way Bill
+   */
+  async cancel(request: CancelEWayBillRequest): Promise<CancelEWayBillResponse> {
+    // Validate request
+    EWayBillValidator.validateCancelRequest(request)
+
+    // Ensure authenticated
+    await this.auth.ensureAuthenticated()
+
+    const url = `${this.config.baseURL}/${this.config.apiVersion}/ewayapi`
+
+    const response = await this.makeRequest<CancelEWayBillResponse>(
+      url,
+      'POST',
+      {
+        ...request,
+        cancelType: 'CANCEL'
+      }
+    )
+
+    // Clear cache for this E-Way Bill
+    this.clearCache(`ewb-${request.ewbNo}`)
+
+    return response
+  }
+
+  /**
+   * Extend E-Way Bill validity
+   */
+  async extendValidity(request: ExtendValidityRequest): Promise<ExtendValidityResponse> {
+    // Validate request
+    EWayBillValidator.validateExtendRequest(request)
+
+    // Ensure authenticated
+    await this.auth.ensureAuthenticated()
+
+    const url = `${this.config.baseURL}/${this.config.apiVersion}/ewayapi`
+
+    const response = await this.makeRequest<ExtendValidityResponse>(
+      url,
+      'POST',
+      {
+        ...request,
+        extendType: 'EXTEND'
+      }
+    )
+
+    // Clear cache for this E-Way Bill
+    this.clearCache(`ewb-${request.ewbNo}`)
+
+    return response
+  }
+
+  /**
+   * Get E-Way Bill details
+   */
+  async getDetails(ewbNo: number): Promise<EWayBillDetails> {
+    // Validate E-Way Bill number
+    EWayBillValidator.validateEWayBillNumber(ewbNo)
+
+    // Check cache first
+    const cached = this.getFromCache<EWayBillDetails>(`ewb-${ewbNo}`)
+    if (cached) {
+      return cached
+    }
+
+    // Ensure authenticated
+    await this.auth.ensureAuthenticated()
+
+    const url = `${this.config.baseURL}/${this.config.apiVersion}/ewayapi?ewbNo=${ewbNo}`
+
+    const response = await this.makeRequest<EWayBillDetails>(url, 'GET')
+
+    // Cache the result
+    this.setCache(`ewb-${ewbNo}`, response)
+
+    return response
+  }
+
+  /**
+   * Get E-Way Bills by date
+   */
+  async getByDate(date: string): Promise<EWayBillSummary[]> {
+    // Validate date format
+    try {
+      EWayBillUtils.parseDate(date)
+    } catch (error) {
+      throw new APIError('Invalid date format. Expected DD/MM/YYYY')
+    }
+
+    // Ensure authenticated
+    await this.auth.ensureAuthenticated()
+
+    const url = `${this.config.baseURL}/${this.config.apiVersion}/ewayapi/GetEwayBillsByDate?date=${date}`
+
+    const response = await this.makeRequest<EWayBillSummary[]>(url, 'GET')
+
+    return response
+  }
+
+  /**
+   * Reject E-Way Bill
+   * (For bills generated by others on your GSTIN)
+   */
+  async reject(request: RejectEWayBillRequest): Promise<RejectEWayBillResponse> {
+    // Validate E-Way Bill number
+    EWayBillValidator.validateEWayBillNumber(request.ewbNo)
+
+    // Ensure authenticated
+    await this.auth.ensureAuthenticated()
+
+    const url = `${this.config.baseURL}/${this.config.apiVersion}/ewayapi`
+
+    const response = await this.makeRequest<RejectEWayBillResponse>(
+      url,
+      'POST',
+      {
+        ...request,
+        rejectType: 'REJECT'
+      }
+    )
+
+    // Clear cache for this E-Way Bill
+    this.clearCache(`ewb-${request.ewbNo}`)
+
+    return response
+  }
+
+  /**
+   * Get E-Way Bills rejected by others
+   */
+  async getRejectedByOthers(date: string): Promise<EWayBillSummary[]> {
+    // Validate date format
+    try {
+      EWayBillUtils.parseDate(date)
+    } catch (error) {
+      throw new APIError('Invalid date format. Expected DD/MM/YYYY')
+    }
+
+    // Ensure authenticated
+    await this.auth.ensureAuthenticated()
+
+    const url = `${this.config.baseURL}/${this.config.apiVersion}/ewayapi/GetRejectedByOthers?date=${date}`
+
+    const response = await this.makeRequest<EWayBillSummary[]>(url, 'GET')
+
+    return response
+  }
+
+  /**
+   * Make HTTP request to E-Way Bill API
+   */
+  private async makeRequest<T>(
+    url: string,
+    method: 'GET' | 'POST',
+    body?: any,
+    retryCount: number = 0
+  ): Promise<T> {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout)
+
+      const headers = this.auth.getAuthHeaders()
+
+      const options: RequestInit = {
+        method,
+        headers,
+        signal: controller.signal
+      }
+
+      if (body && method === 'POST') {
+        options.body = JSON.stringify(body)
+      }
+
+      if (this.config.debug) {
+        console.log('[EWayBill Client] Request:', {
+          url,
+          method,
+          body: method === 'POST' ? body : undefined
+        })
+      }
+
+      const response = await fetch(url, options)
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        // Handle specific HTTP errors
+        if (response.status === 401) {
+          // Authentication failed, clear auth and retry once
+          this.auth.clearAuth()
+          if (retryCount === 0) {
+            await this.auth.ensureAuthenticated()
+            return this.makeRequest<T>(url, method, body, retryCount + 1)
+          }
+          throw new AuthenticationError('Authentication failed')
+        }
+
+        throw new APIError(
+          `Request failed with status ${response.status}`,
+          `HTTP_${response.status}`,
+          { status: response.status, statusText: response.statusText }
+        )
+      }
+
+      const data: EWayBillAPIResponse<T> = await response.json()
+
+      if (this.config.debug) {
+        console.log('[EWayBill Client] Response:', data)
+      }
+
+      // Check for API errors
+      if (data.status === '0' || data.errorCodes) {
+        throw new APIError(
+          data.error?.message || 'API request failed',
+          data.error?.error_cd,
+          { errorCodes: data.errorCodes, error: data.error }
+        )
+      }
+
+      if (data.status === '1' && data.data !== undefined) {
+        return data.data as T
+      }
+
+      throw new APIError('Invalid API response')
+    } catch (error) {
+      if (error instanceof AuthenticationError || error instanceof APIError) {
+        throw error
+      }
+
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          // Retry on timeout
+          if (retryCount < this.config.maxRetries!) {
+            const delay = this.config.retryDelay! * Math.pow(2, retryCount)
+            await new Promise(resolve => setTimeout(resolve, delay))
+            return this.makeRequest<T>(url, method, body, retryCount + 1)
+          }
+          throw new APIError('Request timeout')
+        }
+        throw new APIError(`Request failed: ${error.message}`)
+      }
+
+      throw new APIError('Request failed with unknown error')
+    }
+  }
+
+  /**
+   * Cache helpers
+   */
+  private getFromCache<T>(key: string): T | null {
+    if (!this.config.cacheEnabled) {
+      return null
+    }
+
+    const cached = this.cache.get(key)
+    if (cached && cached.expiry > Date.now()) {
+      if (this.config.debug) {
+        console.log('[EWayBill Client] Cache hit:', key)
+      }
+      return cached.data as T
+    }
+
+    return null
+  }
+
+  private setCache(key: string, data: any): void {
+    if (!this.config.cacheEnabled) {
+      return
+    }
+
+    this.cache.set(key, {
+      data,
+      expiry: Date.now() + this.config.cacheTTL!
+    })
+  }
+
+  private clearCache(key?: string): void {
+    if (key) {
+      this.cache.delete(key)
+    } else {
+      this.cache.clear()
+    }
+  }
+
+  /**
+   * Clear all caches
+   */
+  clearAllCaches(): void {
+    this.clearCache()
+  }
+
+  /**
+   * Get authentication status
+   */
+  isAuthenticated(): boolean {
+    return this.auth.isAuthenticated()
+  }
+
+  /**
+   * Manually authenticate
+   */
+  async authenticate(): Promise<void> {
+    await this.auth.authenticate()
+  }
+
+  /**
+   * Clear authentication
+   */
+  clearAuth(): void {
+    this.auth.clearAuth()
+  }
+}
