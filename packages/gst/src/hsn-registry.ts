@@ -12,6 +12,7 @@
  */
 
 import { GSTRate, GST_RATES } from './types'
+import { HSNAPIProvider, HSNLookupResult } from './hsn-api-provider'
 
 /**
  * HSN Chapter (2-digit codes)
@@ -299,15 +300,50 @@ export const COMMON_HSN_CODES: HSNCode[] = [
 
 /**
  * HSN Registry Class for searching and querying HSN codes
+ *
+ * Supports API integration with fallback to hard-coded data:
+ * 1. Try configured API providers (in priority order)
+ * 2. Fall back to hard-coded registry data
+ *
+ * API providers can be configured using registerProvider() method.
  */
 export class HSNRegistry {
   private static hsnMap: Map<string, HSNCode> = new Map()
+  private static apiProviders: HSNAPIProvider[] = []
 
   static {
     // Initialize HSN map
     COMMON_HSN_CODES.forEach(hsn => {
       this.hsnMap.set(hsn.code, hsn)
     })
+  }
+
+  /**
+   * Register an API provider
+   * Providers are used in priority order (lower priority number = higher priority)
+   */
+  static registerProvider(provider: HSNAPIProvider): void {
+    this.apiProviders.push(provider)
+    // Sort by priority (lower number = higher priority)
+    this.apiProviders.sort((a, b) => {
+      const aPriority = (a as any).config?.priority || 999
+      const bPriority = (b as any).config?.priority || 999
+      return aPriority - bPriority
+    })
+  }
+
+  /**
+   * Clear all registered providers
+   */
+  static clearProviders(): void {
+    this.apiProviders = []
+  }
+
+  /**
+   * Get registered providers
+   */
+  static getProviders(): HSNAPIProvider[] {
+    return [...this.apiProviders]
   }
 
   /**
@@ -409,6 +445,8 @@ export class HSNRegistry {
 
   /**
    * Validate and get HSN info (returns formatted result)
+   * This is a synchronous method that only uses hard-coded data.
+   * For API integration, use lookupAsync() instead.
    */
   static lookup(code: string): {
     isValid: boolean
@@ -457,6 +495,85 @@ export class HSNRegistry {
       description: chapter.description,
       chapterDescription: chapter.description,
       gstRate: details.recommendedGSTRate
+    }
+  }
+
+  /**
+   * Async HSN lookup with API integration and fallback
+   *
+   * This method:
+   * 1. Tries all registered API providers in priority order
+   * 2. Falls back to hard-coded registry data if APIs fail
+   * 3. Returns source information (api, cache, or fallback)
+   *
+   * @param code HSN code to lookup
+   * @param useAPIOnly If true, only use API providers (don't fallback to hard-coded data)
+   * @returns HSN lookup result with source information
+   */
+  static async lookupAsync(
+    code: string,
+    useAPIOnly = false
+  ): Promise<
+    {
+      isValid: boolean
+      code: string
+      description: string
+      gstRate?: number
+      cess?: number
+      unit?: string
+      chapterDescription?: string
+      source: 'api' | 'cache' | 'fallback'
+      provider?: string
+    }
+  > {
+    if (!code || code.length < 2) {
+      return {
+        isValid: false,
+        code,
+        description: 'Invalid HSN code',
+        source: 'fallback'
+      }
+    }
+
+    // Try API providers first
+    for (const provider of this.apiProviders) {
+      try {
+        const result = await provider.lookup(code)
+        if (result) {
+          const chapter = this.getChapter(result.code.substring(0, 2))
+          return {
+            isValid: true,
+            code: result.code,
+            description: result.description,
+            gstRate: result.gstRate,
+            cess: result.cess,
+            unit: result.unit,
+            chapterDescription: chapter?.description,
+            source: result.source,
+            provider: result.provider
+          }
+        }
+      } catch (error) {
+        console.error(`[HSNRegistry] Provider ${(provider as any).getName?.()} failed:`, error)
+        // Continue to next provider
+      }
+    }
+
+    // If useAPIOnly is true, don't fall back to hard-coded data
+    if (useAPIOnly) {
+      return {
+        isValid: false,
+        code,
+        description: 'Not found in API providers',
+        source: 'fallback'
+      }
+    }
+
+    // Fall back to hard-coded registry data
+    const fallbackResult = this.lookup(code)
+    return {
+      ...fallbackResult,
+      source: 'fallback' as const
     }
   }
 
