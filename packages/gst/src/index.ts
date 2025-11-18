@@ -21,6 +21,24 @@ export {
   GSTReturnGenerator
 } from './returns'
 
+// Export portal integration helpers
+export {
+  GSTPortalHelper
+} from './portal'
+export type {
+  PortalFileOptions,
+  PortalFileResult
+} from './portal'
+
+// Export HSN Registry
+export {
+  HSNRegistry
+} from './hsn-registry'
+export type {
+  HSNChapter,
+  HSNCode
+} from './hsn-registry'
+
 // Export error classes
 export {
   GSTError,
