@@ -7,6 +7,7 @@ import {
   GST_RATES
 } from './types'
 import { GSTUtils } from './validation'
+import { HSNRegistry } from './hsn-registry'
 
 /**
  * GST Tax Calculator for Indian tax calculations
@@ -209,37 +210,42 @@ export class GSTCalculator {
 
   /**
    * Determines applicable GST rate based on HSN/SAC code and amount
-   * This is a simplified version - in real implementation, you'd maintain
-   * a comprehensive database of HSN/SAC codes with their applicable rates
+   * Uses the comprehensive HSN Registry for accurate rate determination
    */
   static getApplicableGSTRate(hsnSac?: string, amount?: number): number {
     if (!hsnSac) {
       return GST_RATES.GST_18 // Default rate
     }
 
-    // Simplified rate determination based on HSN/SAC prefixes
+    // Try to get rate from HSN Registry
+    const recommendedRate = HSNRegistry.getRecommendedGSTRate(hsnSac)
+    if (recommendedRate !== undefined) {
+      return recommendedRate
+    }
+
+    // Fallback to simplified chapter-based logic
     const code = hsnSac.substring(0, 2)
-    
+
     // Essential items (food, medicines, etc.)
     if (['01', '02', '03', '04', '07', '08', '10'].includes(code)) {
       return GST_RATES.EXEMPT // 0% or 5%
     }
-    
+
     // Textiles, processed foods
     if (['11', '15', '17', '19', '20', '21'].includes(code)) {
       return GST_RATES.GST_5
     }
-    
+
     // Industrial inputs
     if (['25', '27', '28', '29', '30'].includes(code)) {
       return GST_RATES.GST_12
     }
-    
+
     // Most goods and services
     if (['84', '85', '87', '90'].includes(code)) {
       return GST_RATES.GST_18
     }
-    
+
     // Luxury items, automobiles, tobacco
     if (['22', '24', '33', '34'].includes(code)) {
       return GST_RATES.GST_28

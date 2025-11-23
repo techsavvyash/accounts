@@ -21,6 +21,50 @@ export {
   GSTReturnGenerator
 } from './returns'
 
+// Export portal integration helpers
+export {
+  GSTPortalHelper
+} from './portal'
+export type {
+  PortalFileOptions,
+  PortalFileResult
+} from './portal'
+
+// Export HSN Registry
+export {
+  HSNRegistry
+} from './hsn-registry'
+export type {
+  HSNChapter,
+  HSNCode
+} from './hsn-registry'
+
+// Export HSN API Provider
+export {
+  HSNAPIProvider
+} from './hsn-api-provider'
+export type {
+  HSNLookupResult,
+  HSNProviderConfig
+} from './hsn-api-provider'
+
+// Export HSN API Providers
+export {
+  EWayBillProvider,
+  createEWayBillProvider
+} from './providers/ewaybill-provider'
+export type {
+  EWayBillConfig
+} from './providers/ewaybill-provider'
+
+export {
+  SandboxProvider,
+  createSandboxProvider
+} from './providers/sandbox-provider'
+export type {
+  SandboxConfig
+} from './providers/sandbox-provider'
+
 // Export error classes
 export {
   GSTError,
