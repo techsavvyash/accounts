@@ -14,7 +14,7 @@ export {
 export {
   GSTCalculator,
   GSTRateManager
-} from './calculator'
+} from './calculation'
 
 // Export return generation utilities
 export {
@@ -33,20 +33,20 @@ export type {
 // Export HSN Registry
 export {
   HSNRegistry
-} from './hsn-registry'
+} from './hsn'
 export type {
   HSNChapter,
   HSNCode
-} from './hsn-registry'
+} from './hsn'
 
 // Export HSN API Provider
 export {
   HSNAPIProvider
-} from './hsn-api-provider'
+} from './hsn'
 export type {
   HSNLookupResult,
   HSNProviderConfig
-} from './hsn-api-provider'
+} from './hsn'
 
 // Export HSN API Providers
 export {
@@ -65,17 +65,17 @@ export type {
   SandboxConfig
 } from './providers/sandbox-provider'
 
-// Export error classes
+// Export error classes (re-exported from core)
 export {
   GSTError,
   GSTINValidationError,
   TaxCalculationError,
   ReturnGenerationError
-} from './types'
+} from './core'
 
 // Main GST class that provides a unified interface
 import { GSTINValidator, PANValidator, HSNValidator, SACValidator, GSTUtils } from './validation'
-import { GSTCalculator, GSTRateManager } from './calculator' 
+import { GSTCalculator, GSTRateManager } from './calculation'
 import { GSTReturnGenerator } from './returns'
 import {
   TaxCalculationInput,
@@ -87,7 +87,7 @@ import {
   GSTINValidationError,
   TaxCalculationError,
   ReturnGenerationError
-} from './types'
+} from './core'
 
 /**
  * Main GST utility class providing a unified interface

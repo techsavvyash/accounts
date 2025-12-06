@@ -10,9 +10,9 @@ import {
   GSTTransactionType,
   GSTInvoiceType,
   ReturnGenerationError
-} from './types'
-import { GSTUtils } from './validation'
-import { GSTCalculator } from './calculator'
+} from '../core'
+import { GSTUtils } from '../validation'
+import { GSTCalculator } from '../calculation'
 
 /**
  * GST Return Generator for GSTR-1 and GSTR-3B

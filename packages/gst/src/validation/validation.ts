@@ -1,5 +1,5 @@
-import { GSTINValidationError, GST_STATE_CODES, PANSchema, HSNSchema, SACSchema } from './core'
-import { HSNRegistry } from './hsn-registry'
+import { GSTINValidationError, GST_STATE_CODES, PANSchema, HSNSchema, SACSchema } from '../core'
+import { HSNRegistry } from '../hsn'
 
 /**
  * Validates GSTIN format and checksum

@@ -5,9 +5,9 @@ import {
   GSTInvoice,
   GSTInvoiceLineItem,
   GST_RATES
-} from './core'
-import { GSTUtils } from './validation'
-import { HSNRegistry } from './hsn-registry'
+} from '../core'
+import { GSTUtils } from '../validation'
+import { HSNRegistry } from '../hsn'
 
 /**
  * GST Tax Calculator for Indian tax calculations

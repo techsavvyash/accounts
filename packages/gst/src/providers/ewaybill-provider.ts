@@ -7,7 +7,7 @@
  * Note: Requires GST registration and API credentials from the E-way Bill portal
  */
 
-import { HSNAPIProvider, HSNLookupResult, HSNProviderConfig } from '../hsn-api-provider'
+import { HSNAPIProvider, HSNLookupResult, HSNProviderConfig } from '../hsn'
 
 export interface EWayBillConfig extends HSNProviderConfig {
   baseURL: string

@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach } from 'bun:test'
-import { GSTCalculator, GSTRateManager } from '../../src/calculator'
+import { GSTCalculator, GSTRateManager } from '../../src/calculation'
 import { TaxCalculationError } from '../../src/core'
 
 describe('GSTCalculator', () => {

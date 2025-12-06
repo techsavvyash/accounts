@@ -5,8 +5,8 @@
  * JSON files that can be directly uploaded to the GST portal.
  */
 
-import { GSTReturnGenerator } from './returns'
-import { GSTR1Return, GSTR3BReturn } from './types'
+import { GSTReturnGenerator } from '../returns'
+import { GSTR1Return, GSTR3BReturn } from '../core'
 
 export interface PortalFileOptions {
   /**
@@ -313,4 +313,4 @@ export class GSTPortalHelper {
 }
 
 // Re-export for convenience
-export { GSTReturnGenerator } from './returns'
+export { GSTReturnGenerator } from '../returns'

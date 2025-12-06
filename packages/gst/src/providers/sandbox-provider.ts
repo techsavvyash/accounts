@@ -7,7 +7,7 @@
  * Note: Requires paid subscription (14-day free trial available)
  */
 
-import { HSNAPIProvider, HSNLookupResult, HSNProviderConfig } from '../hsn-api-provider'
+import { HSNAPIProvider, HSNLookupResult, HSNProviderConfig } from '../hsn'
 
 export interface SandboxConfig extends HSNProviderConfig {
   baseURL: string
