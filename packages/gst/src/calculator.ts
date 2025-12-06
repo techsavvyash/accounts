@@ -5,7 +5,7 @@ import {
   GSTInvoice,
   GSTInvoiceLineItem,
   GST_RATES
-} from './types'
+} from './core'
 import { GSTUtils } from './validation'
 import { HSNRegistry } from './hsn-registry'
 

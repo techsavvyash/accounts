@@ -1,5 +1,5 @@
-// Export all types
-export * from './types'
+// Export all types from core module
+export * from './core'
 
 // Export validation utilities
 export {
