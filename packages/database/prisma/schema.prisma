@@ -36,7 +36,17 @@ enum InvoiceStatus {
 
 enum CreditNoteStatus {
   DRAFT
+  ISSUED
   APPLIED
+  CANCELLED
+  VOID
+}
+
+enum DebitNoteStatus {
+  DRAFT
+  ISSUED
+  APPLIED
+  CANCELLED
   VOID
 }
 
@@ -83,6 +93,7 @@ model Tenant {
   stockMovements       StockMovement[]
   invoices             Invoice[]
   creditNotes          CreditNote[]
+  debitNotes           DebitNote[]
   gstReturns           GstReturn[]
   webhooks             Webhook[]
   roles                Role[]
@@ -266,6 +277,7 @@ model Customer {
   tenant      Tenant      @relation(fields: [tenantId], references: [id])
   invoices    Invoice[]
   creditNotes CreditNote[]
+  debitNotes  DebitNote[]
 
   @@index([tenantId])
   @@map("customers")
@@ -309,10 +321,12 @@ model InventoryItem {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
-  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  tenant                Tenant                  @relation(fields: [tenantId], references: [id])
   stockLevels           StockLevel[]
   stockMovements        StockMovement[]
   invoiceItems          InvoiceLineItem[]
+  creditNoteItems       CreditNoteLineItem[]
+  debitNoteItems        DebitNoteLineItem[]
   taxRates              TaxRate[]
   purchaseOrderItems    PurchaseOrderLineItem[]
 
@@ -475,10 +489,14 @@ model CreditNote {
   tenantId              String            @map("tenant_id")
   creditNoteNumber      String            @map("credit_note_number")
   customerId            String            @map("customer_id")
+  originalInvoiceId     String?           @map("original_invoice_id")
   issueDate             DateTime          @map("issue_date")
   reason                String?
+  subtotal              Decimal           @db.Decimal(15, 2) @default(0)
+  taxAmount             Decimal           @db.Decimal(15, 2) @map("tax_amount") @default(0)
   totalAmount           Decimal           @db.Decimal(15, 2) @map("total_amount")
   status                CreditNoteStatus  @default(DRAFT)
+  notes                 String?
   linkedJournalEntryId  String?           @map("linked_journal_entry_id")
   createdAt             DateTime          @default(now()) @map("created_at")
   updatedAt             DateTime          @updatedAt @map("updated_at")
@@ -486,11 +504,84 @@ model CreditNote {
   // Relations
   tenant       Tenant                   @relation(fields: [tenantId], references: [id])
   customer     Customer                 @relation(fields: [customerId], references: [id])
+  lineItems    CreditNoteLineItem[]
   applications CreditNoteApplication[]
 
   @@unique([tenantId, creditNoteNumber])
   @@index([tenantId])
+  @@index([customerId])
   @@map("credit_notes")
+}
+
+// Credit Note Line Items
+model CreditNoteLineItem {
+  id              String      @id @default(uuid())
+  creditNoteId    String      @map("credit_note_id")
+  inventoryItemId String?     @map("inventory_item_id")
+  description     String
+  hsnCode         String?     @map("hsn_code")
+  quantity        Decimal     @db.Decimal(10, 3)
+  unitPrice       Decimal     @db.Decimal(15, 2) @map("unit_price")
+  taxRateId       String?     @map("tax_rate_id")
+  lineTotal       Decimal     @db.Decimal(15, 2) @map("line_total")
+
+  // Relations
+  creditNote    CreditNote     @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
+
+  @@index([creditNoteId])
+  @@map("credit_note_line_items")
+}
+
+// Debit Notes
+model DebitNote {
+  id                    String           @id @default(uuid())
+  tenantId              String           @map("tenant_id")
+  debitNoteNumber       String           @map("debit_note_number")
+  customerId            String           @map("customer_id")
+  originalInvoiceId     String?          @map("original_invoice_id")
+  issueDate             DateTime         @map("issue_date")
+  reason                String?
+  subtotal              Decimal          @db.Decimal(15, 2) @default(0)
+  taxAmount             Decimal          @db.Decimal(15, 2) @map("tax_amount") @default(0)
+  totalAmount           Decimal          @db.Decimal(15, 2) @map("total_amount")
+  status                DebitNoteStatus  @default(DRAFT)
+  notes                 String?
+  linkedJournalEntryId  String?          @map("linked_journal_entry_id")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  tenant    Tenant              @relation(fields: [tenantId], references: [id])
+  customer  Customer            @relation(fields: [customerId], references: [id])
+  lineItems DebitNoteLineItem[]
+
+  @@unique([tenantId, debitNoteNumber])
+  @@index([tenantId])
+  @@index([customerId])
+  @@map("debit_notes")
+}
+
+// Debit Note Line Items
+model DebitNoteLineItem {
+  id              String      @id @default(uuid())
+  debitNoteId     String      @map("debit_note_id")
+  inventoryItemId String?     @map("inventory_item_id")
+  description     String
+  hsnCode         String?     @map("hsn_code")
+  quantity        Decimal     @db.Decimal(10, 3)
+  unitPrice       Decimal     @db.Decimal(15, 2) @map("unit_price")
+  taxRateId       String?     @map("tax_rate_id")
+  lineTotal       Decimal     @db.Decimal(15, 2) @map("line_total")
+
+  // Relations
+  debitNote     DebitNote      @relation(fields: [debitNoteId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  taxRate       TaxRate?       @relation(fields: [taxRateId], references: [id])
+
+  @@index([debitNoteId])
+  @@map("debit_note_line_items")
 }
 
 // Credit Note Applications (Many-to-Many)
@@ -524,9 +615,11 @@ model TaxRate {
   isActive Boolean @default(true) @map("is_active")
 
   // Relations
-  tenant           Tenant?           @relation(fields: [tenantId], references: [id])
-  inventoryItems   InventoryItem[]
-  invoiceLineItems InvoiceLineItem[]
+  tenant              Tenant?               @relation(fields: [tenantId], references: [id])
+  inventoryItems      InventoryItem[]
+  invoiceLineItems    InvoiceLineItem[]
+  creditNoteLineItems CreditNoteLineItem[]
+  debitNoteLineItems  DebitNoteLineItem[]
 
   @@index([hsnCode])
   @@map("tax_rates")

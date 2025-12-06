@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --filter './apps/api' dev",
+    "dev": "concurrently -n \"API,WEB\" -c \"blue,green\" \"bun run dev:api\" \"bun run dev:web\"",
     "dev:api": "bun run --filter './apps/api' dev",
     "dev:web": "bun run --filter './apps/web' dev",
     "build": "bun run build:packages && bun run build:apps",
@@ -18,12 +18,23 @@
     "db:migrate": "bun run --filter '@accounts/database' db:migrate",
     "db:studio": "bun run --filter '@accounts/database' db:studio",
     "test": "bun test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
     "lint": "bun run --filter '*' lint",
     "typecheck": "bun run --filter '*' typecheck"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
     "@types/bun": "latest",
+    "concurrently": "^9.2.1",
+    "playwright": "^1.56.1",
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@elysiajs/bearer": "^1.4.1",
+    "@techsavvyash/heimdall-sdk": "^0.0.1"
   }
 }
